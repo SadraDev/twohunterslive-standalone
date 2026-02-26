@@ -1,0 +1,724 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>TwoHunters YAML Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+    <style>
+        body {
+            background: #0f172a;
+            color: #e5e7eb;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+            box-shadow: 0 0 6px currentColor;
+        }
+        .status-online { background-color: #22c55e; color: #22c55e; }
+        .status-offline { background-color: #ef4444; color: #ef4444; }
+
+        textarea.yaml-textarea {
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 1rem;
+            background: #020617;
+            color: #e5e7eb;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            padding: 1rem;
+            resize: vertical;
+            white-space: pre;
+            overflow-wrap: normal;
+            width: 100%;
+        }
+
+        .group-bubble {
+            background-color: #020617;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            padding: 0.5rem 1rem 0.25rem 1rem;
+            margin-bottom: 1rem;
+        }
+        .group-title {
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #9ca3af;
+            margin-bottom: 0.2rem;
+        }
+
+        .friendly-field-group {
+            margin-bottom: 0.4rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 1px solid #111827;
+        }
+        .friendly-field-group:last-child { border-bottom: none; }
+
+        .friendly-label {
+            font-weight: 500;
+            color: #cbd5e1;
+            margin-bottom: 0.25rem;
+            font-family: "JetBrains Mono", monospace;
+            font-size: 0.85rem;
+        }
+        .friendly-input {
+            background-color: #020617;
+            border: 1px solid #475569;
+            color: #f8fafc;
+            border-radius: 0.4rem;
+            padding: 0.4rem 0.7rem;
+            width: 100%;
+            font-size: 0.95rem;
+        }
+        .friendly-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.3);
+        }
+
+        .form-switch .form-check-input {
+            width: 3em;
+            height: 1.5em;
+            margin-top: 0.1em;
+            background-color: #475569;
+            border-color: #334155;
+            cursor: pointer;
+        }
+        .form-switch .form-check-input:checked {
+            background-color: #22c55e;
+            border-color: #22c55e;
+        }
+
+        .admin-chip-btn {
+            border-radius: 999px;
+            padding: 0.25rem 0.8rem;
+            font-size: 0.8rem;
+            border: 1px solid #4b5563;
+            color: #e5e7eb;
+            background: #111827;
+        }
+        .admin-chip-spinner {
+            width: 0.9rem;
+            height: 0.9rem;
+            border-width: 0.12em;
+        }
+
+        #floating-save {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1050;
+            border-radius: 999px;
+            padding: 0.8rem 1.6rem;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            opacity: 0;
+            pointer-events: none;
+            width: 320px;
+            max-width: 90%;
+        }
+        #floating-save.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #floating-save:hover {
+            transform: translateX(-50%) translateY(-2px);
+        }
+
+        @media (max-width: 576px) {
+            #floating-save {
+                bottom: 1rem;
+                width: 90%;
+            }
+        }
+
+        .toast-container {
+            z-index: 1100;
+        }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-dark mb-4"
+     style="background-color:#020617 !important;border-bottom:1px solid #1e293b;">
+    <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">TwoHunters YAML Editor</span>
+        {% if authenticated %}
+        <form method="post" class="d-flex">
+            {% csrf_token %}
+            <button type="submit" name="logout" class="btn btn-outline-light btn-sm">Logout</button>
+        </form>
+        {% endif %}
+    </div>
+</nav>
+
+<div class="container" style="max-width: 960px; margin-bottom: 100px;">
+
+    {% if not authenticated %}
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card p-4 shadow">
+                <h5 class="mb-3 text-light">Login</h5>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label text-light">Username</label>
+                        {{ login_form.username }}
+                        {{ login_form.username.errors }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-light">Password</label>
+                        {{ login_form.password }}
+                        {{ login_form.password.errors }}
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Enter Editor</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+
+    <div class="card p-4 shadow">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <h5 class="mb-0 text-light" id="card-title" style="cursor:pointer;">Edit Configuration</h5>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center text-light"
+                     style="font-size:0.8rem;font-weight:500;">
+                    <span class="status-dot {% if server_running %}status-online{% else %}status-offline{% endif %}"></span>
+                    <span>Server {% if server_running %}Online{% else %}Offline{% endif %}</span>
+                </div>
+                <button type="button"
+                        onclick="window.location.reload();"
+                        class="btn btn-sm btn-outline-secondary"
+                        title="Reload YAML from disk">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         width="14" height="14" fill="currentColor"
+                         viewBox="0 0 16 16" style="margin-bottom:1px;">
+                        <path fill-rule="evenodd"
+                              d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <hr class="border-secondary mb-3" />
+
+        <form method="post" id="main-editor-form">
+            {% csrf_token %}
+            <input type="hidden" name="save_mode" id="save_mode_input" value="friendly">
+
+            <div id="classic-view-container" style="display:none;">
+                {{ yaml_form.content }}
+                {{ yaml_form.content.errors }}
+            </div>
+
+            <div id="friendly-view-container">
+                <div id="friendly-fields-root"></div>
+            </div>
+        </form>
+    </div>
+
+    <button type="button" id="floating-save" class="btn btn-success">
+        Save Config
+    </button>
+
+    {% endif %}
+</div>
+
+{% if authenticated %}
+<script id="friendly-data" type="application/json">
+    {{ json_fields|safe }}
+</script>
+
+{% if saved_ok %}
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="save-toast">
+  <div class="toast align-items-center text-bg-success border-0 show" role="alert">
+    <div class="d-flex">
+      <div class="toast-body">
+        Configuration changed successfully.
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+    var mainForm = document.getElementById("main-editor-form");
+    var saveModeInput = document.getElementById("save_mode_input");
+    var classicContainer = document.getElementById("classic-view-container");
+    var friendlyContainer = document.getElementById("friendly-view-container");
+    var friendlyRoot = document.getElementById("friendly-fields-root");
+    var floatingSave = document.getElementById("floating-save");
+    var cardTitle = document.getElementById("card-title");
+
+    var fieldsData = [];
+    try {
+        var fd = document.getElementById("friendly-data").textContent;
+        fieldsData = fd ? JSON.parse(fd) : [];
+    } catch (e) {
+        console.error("Could not parse YAML fields", e);
+    }
+
+    var adminKeys = new Set([
+        "admin_commands.stop",
+        "admin_commands.reset",
+        "admin_commands.update",
+        "admin_commands.say_hello",
+        "admin_commands.pause",
+        "admin_commands.resume"
+    ]);
+
+    function storeScroll() {
+        if (window.sessionStorage) {
+            sessionStorage.setItem("yamlEditorScrollY", String(window.scrollY));
+        }
+    }
+
+    function restoreScroll() {
+        if (!window.sessionStorage) return;
+        var y = sessionStorage.getItem("yamlEditorScrollY");
+        if (y !== null) {
+            var val = parseInt(y, 10);
+            if (!isNaN(val)) {
+                window.scrollTo(0, val);
+            }
+        }
+    }
+
+    function showFriendly() {
+        saveModeInput.value = "friendly";
+        friendlyContainer.style.display = "block";
+        classicContainer.style.display = "none";
+        floatingSave.classList.remove("visible");
+    }
+
+    function showClassic() {
+        saveModeInput.value = "classic";
+        friendlyContainer.style.display = "none";
+        classicContainer.style.display = "block";
+        floatingSave.classList.add("visible");
+    }
+
+    showFriendly();
+
+    // Triple-tap on title toggles modes
+    var tapCount = 0;
+    var tapTimer = null;
+    function handleTitleTap() {
+        tapCount += 1;
+        if (tapTimer) {
+            clearTimeout(tapTimer);
+        }
+        tapTimer = setTimeout(function () {
+            tapCount = 0;
+        }, 400);
+        if (tapCount >= 3) {
+            tapCount = 0;
+            if (saveModeInput.value === "friendly") {
+                showClassic();
+            } else {
+                showFriendly();
+            }
+        }
+    }
+    if (cardTitle) {
+        cardTitle.addEventListener("click", handleTitleTap);
+        cardTitle.addEventListener("touchend", handleTitleTap);
+    }
+
+    function shortKey(fullKey) {
+        var parts = fullKey.split(".");
+        return parts[parts.length - 1];
+    }
+
+    function groupKeyFor(field) {
+        var k = field.key;
+        var idx = k.indexOf(".");
+        if (idx === -1) {
+            return k;   // root scalar, its own card
+        }
+        return k.substring(0, idx); // top-level group: admin, admin_commands, system, paths, ...
+    }
+
+    function renderGroup(title, fields, groupName, hasTitle) {
+        if (!fields || !fields.length) return;
+
+        var section = document.createElement("div");
+        section.className = "group-bubble";
+
+        if (hasTitle) {
+            var header = document.createElement("div");
+            header.className = "group-title";
+            header.textContent = title;
+            section.appendChild(header);
+        }
+
+        // Special layout for sessions: group by second segment (main / london / newyork)
+        if (groupName === "sessions") {
+            var subs = {};
+            var order = ["main", "london", "newyork"];
+
+            fields.forEach(function (field) {
+                var parts = field.key.split(".");
+                var subName = (parts.length >= 3) ? parts[1] : "other";
+                if (!subs[subName]) subs[subName] = [];
+                subs[subName].push(field);
+            });
+
+            // Preserve explicit order main / london / newyork, then any extras
+            var subOrder = [];
+            order.forEach(function (name) {
+                if (subs[name]) subOrder.push(name);
+            });
+            Object.keys(subs).forEach(function (name) {
+                if (subOrder.indexOf(name) === -1) subOrder.push(name);
+            });
+
+            subOrder.forEach(function (subName) {
+                var subFields = subs[subName];
+                if (!subFields || !subFields.length) return;
+
+                var subHeader = document.createElement("div");
+                subHeader.className = "friendly-label mb-1 text-secondary";
+                subHeader.textContent = subName.toUpperCase();
+                section.appendChild(subHeader);
+
+                subFields.forEach(function (field) {
+                    var k = field.key;
+                    var t = field.type;
+                    var v = field.value;
+                    var sk = shortKey(k); // start / end
+
+                    var group = document.createElement("div");
+                    group.className = "friendly-field-group";
+
+                    // sessions fields are strings; render like normal text inputs
+                    var labelField = document.createElement("label");
+                    labelField.className = "friendly-label";
+                    labelField.htmlFor = "txt_" + k;
+                    labelField.textContent = sk;
+
+                    var inputField = document.createElement("input");
+                    inputField.type = (t === "number") ? "number" : "text";
+                    if (t === "number") inputField.step = "any";
+                    inputField.className = "friendly-input";
+                    inputField.name = "field_" + k;
+                    inputField.id = "txt_" + k;
+                    inputField.value = (v === null || v === undefined) ? "" : v;
+
+                    inputField.addEventListener("input", function () {
+                        floatingSave.classList.add("visible");
+                    });
+
+                    group.appendChild(labelField);
+                    group.appendChild(inputField);
+                    section.appendChild(group);
+                });
+            });
+
+            friendlyRoot.appendChild(section);
+            return;
+        }
+
+        // ---- default behavior for all other groups (admin/admin_commands/system/...) ----
+
+        fields.forEach(function (field) {
+            var k = field.key;
+            var t = field.type;
+            var v = field.value;
+            var sk = shortKey(k);
+
+            var group = document.createElement("div");
+            group.className = "friendly-field-group";
+
+            // Admin command chip actions in admin_commands
+            if (groupName === "admin_commands" && t === "admin" && adminKeys.has(k)) {
+                var row = document.createElement("div");
+                row.className = "d-flex justify-content-between align-items-center";
+
+                var label = document.createElement("div");
+                label.className = "friendly-label mb-0";
+                label.textContent = sk;
+
+                var btn = document.createElement("button");
+                btn.type = "button";
+                btn.className =
+                    "admin-chip-btn btn btn-sm d-inline-flex align-items-center gap-1";
+                btn.textContent = sk;
+
+                btn.addEventListener("click", function () {
+                    btn.disabled = true;
+                    btn.textContent = "";
+                    var spinner = document.createElement("span");
+                    spinner.className =
+                        "spinner-border admin-chip-spinner text-light";
+                    spinner.setAttribute("role", "status");
+                    spinner.setAttribute("aria-hidden", "true");
+                    btn.appendChild(spinner);
+
+                    var currentVal = !!field.value;
+                    var nextVal = !currentVal;
+
+                    var form = document.createElement("form");
+                    form.method = "post";
+                    form.style.display = "none";
+
+                    var csrf = document
+                        .querySelector("#main-editor-form input[name=csrfmiddlewaretoken]")
+                        .cloneNode();
+                    form.appendChild(csrf);
+
+                    var modeInput = document.createElement("input");
+                    modeInput.type = "hidden";
+                    modeInput.name = "save_mode";
+                    modeInput.value = "friendly";
+                    form.appendChild(modeInput);
+
+                    var fieldInput = document.createElement("input");
+                    fieldInput.type = "hidden";
+                    fieldInput.name = "field_" + k;
+                    fieldInput.value = nextVal ? "true" : "false";
+                    form.appendChild(fieldInput);
+
+                    document.body.appendChild(form);
+                    storeScroll();
+                    form.submit();
+                });
+
+                row.appendChild(label);
+                row.appendChild(btn);
+                group.appendChild(row);
+                section.appendChild(group);
+                return;
+            }
+
+            // Boolean switches (all other groups)
+            if (t === "bool") {
+                var wrapper = document.createElement("div");
+                wrapper.className =
+                    "d-flex justify-content-between align-items-center";
+
+                var textDiv = document.createElement("div");
+                textDiv.className = "friendly-label mb-0";
+                textDiv.textContent = sk;
+
+                var switchDiv = document.createElement("div");
+                switchDiv.className = "form-check form-switch mb-0";
+
+                var inputBool = document.createElement("input");
+                inputBool.className = "form-check-input";
+                inputBool.type = "checkbox";
+                inputBool.name = "field_" + k;
+                inputBool.id = "chk_" + k;
+                inputBool.checked = !!v;
+
+                inputBool.addEventListener("change", function () {
+                    var miniForm = document.createElement("form");
+                    miniForm.method = "post";
+                    miniForm.style.display = "none";
+
+                    var csrf2 = document
+                        .querySelector("#main-editor-form input[name=csrfmiddlewaretoken]")
+                        .cloneNode();
+                    miniForm.appendChild(csrf2);
+
+                    var modeInput2 = document.createElement("input");
+                    modeInput2.type = "hidden";
+                    modeInput2.name = "save_mode";
+                    modeInput2.value = "friendly";
+                    miniForm.appendChild(modeInput2);
+
+                    var fieldInput2 = document.createElement("input");
+                    fieldInput2.type = "hidden";
+                    fieldInput2.name = "field_" + k;
+                    fieldInput2.value = inputBool.checked ? "true" : "false";
+                    miniForm.appendChild(fieldInput2);
+
+                    document.body.appendChild(miniForm);
+                    storeScroll();
+                    miniForm.submit();
+                });
+
+                switchDiv.appendChild(inputBool);
+                wrapper.appendChild(textDiv);
+                wrapper.appendChild(switchDiv);
+                group.appendChild(wrapper);
+                section.appendChild(group);
+                return;
+            }
+
+            // pause_symbol / resume_symbol with Flush (admin_commands only)
+            var isPauseOrResumeSymbol =
+                groupName === "admin_commands" &&
+                (k === "admin_commands.pause_symbol" ||
+                k === "admin_commands.resume_symbol");
+
+            if (isPauseOrResumeSymbol) {
+                var row2 = document.createElement("div");
+                row2.className = "d-flex align-items-center gap-2";
+
+                var label2 = document.createElement("label");
+                label2.className = "friendly-label mb-0";
+                label2.htmlFor = "txt_" + k;
+                label2.textContent = sk;
+
+                var inputWrapper = document.createElement("div");
+                inputWrapper.className = "flex-grow-1";
+
+                var inputField2 = document.createElement("input");
+                inputField2.type = "text";
+                inputField2.className = "friendly-input";
+                inputField2.name = "field_" + k;
+                inputField2.id = "txt_" + k;
+                var rawVal = (v === null || v === undefined || v === "") ? "" : v;
+                var displayVal = (rawVal === "") ? "null" : rawVal;
+                inputField2.value = displayVal;
+
+                inputField2.addEventListener("input", function () {
+                    floatingSave.classList.add("visible");
+                });
+
+                inputWrapper.appendChild(inputField2);
+
+                var flushBtn = document.createElement("button");
+                flushBtn.type = "button";
+                flushBtn.className = "btn btn-sm btn-outline-danger";
+                flushBtn.textContent = "Flush";
+
+                flushBtn.addEventListener("click", function () {
+                    var miniForm2 = document.createElement("form");
+                    miniForm2.method = "post";
+                    miniForm2.style.display = "none";
+
+                    var csrf3 = document
+                        .querySelector("#main-editor-form input[name=csrfmiddlewaretoken]")
+                        .cloneNode();
+                    miniForm2.appendChild(csrf3);
+
+                    var modeInput3 = document.createElement("input");
+                    modeInput3.type = "hidden";
+                    modeInput3.name = "save_mode";
+                    modeInput3.value = "friendly";
+                    miniForm2.appendChild(modeInput3);
+
+                    var fieldInput3 = document.createElement("input");
+                    fieldInput3.type = "hidden";
+                    fieldInput3.name = "field_" + k;
+                    fieldInput3.value = "__NULL__";
+                    miniForm2.appendChild(fieldInput3);
+
+                    document.body.appendChild(miniForm2);
+                    storeScroll();
+                    miniForm2.submit();
+                });
+
+                row2.appendChild(label2);
+                row2.appendChild(inputWrapper);
+                row2.appendChild(flushBtn);
+
+                group.appendChild(row2);
+                section.appendChild(group);
+                return;
+            }
+
+            // Default string/number input
+            var labelField = document.createElement("label");
+            labelField.className = "friendly-label";
+            labelField.htmlFor = "txt_" + k;
+            labelField.textContent = sk;
+
+            var inputField = document.createElement("input");
+            inputField.type = (t === "number") ? "number" : "text";
+            if (t === "number") inputField.step = "any";
+            inputField.className = "friendly-input";
+            inputField.name = "field_" + k;
+            inputField.id = "txt_" + k;
+            inputField.value = (v === null || v === undefined) ? "" : v;
+
+            inputField.addEventListener("input", function () {
+                floatingSave.classList.add("visible");
+            });
+
+            group.appendChild(labelField);
+            group.appendChild(inputField);
+            section.appendChild(group);
+        });
+
+        friendlyRoot.appendChild(section);
+    }
+
+    function renderFriendlyUI() {
+        friendlyRoot.innerHTML = "";
+        if (!fieldsData || !fieldsData.length) {
+            friendlyRoot.innerHTML =
+                '<div class="text-muted">No simple fields detected. Use raw YAML view.</div>';
+            return;
+        }
+
+        var groups = {};
+        var order = [];
+
+        fieldsData.forEach(function (field) {
+            var g = groupKeyFor(field);
+            if (!groups[g]) {
+                groups[g] = [];
+                order.push(g);
+            }
+            groups[g].push(field);
+        });
+
+        order.forEach(function (gName) {
+            var groupFields = groups[gName];
+            var firstKey = groupFields[0].key;
+            var hasTitle = firstKey.indexOf(".") !== -1; // only nested keys get titled cards
+            var title = hasTitle ? gName.toUpperCase() : "";
+            renderGroup(title, groupFields, gName, hasTitle);
+        });
+    }
+
+    renderFriendlyUI();
+
+    if (floatingSave && mainForm) {
+        floatingSave.addEventListener("click", function () {
+            storeScroll();
+            mainForm.submit();
+            floatingSave.classList.remove("visible");
+        });
+    }
+
+    restoreScroll();
+
+    var toastEl = document.getElementById("save-toast");
+    if (toastEl) {
+        setTimeout(function () {
+            toastEl.style.opacity = "0";
+            setTimeout(function () {
+                if (toastEl.parentNode) {
+                    toastEl.parentNode.removeChild(toastEl);
+                }
+            }, 300);
+        }, 2000);
+    }
+})();
+</script>
+{% endif %}
+</body>
+</html>

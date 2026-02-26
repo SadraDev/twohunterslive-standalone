@@ -1,0 +1,67 @@
+admin:
+  username: Jhon
+  password: Jhon123
+admin_commands:
+  update: false
+  say_hello: false
+  stop: false
+  reset: false
+  pause: false
+  pause_symbol: null
+  resume_symbol: null
+  force_order: false
+  halt: false
+system:
+  name: TwoHuntersLive_StandAlone
+  version: 1.0.0
+  running: false
+paths:
+  logs: reports/logs
+  fvgs: reports/fvgs
+  signals: reports/signals
+mt5:
+  magic_number: 842451994
+  deviation: 10
+  reconnect_attempts: 6
+  reconnect_delay: 5
+account:
+  username: null
+  password: null
+symbols:
+- EURUSD.
+- GBPUSD.
+risk_percent: 0.01
+timeframe: M1
+num_hunt_main: 2
+should_recover: false
+orderblock_fvg_pip_size:
+  min: 3.5
+  max: 5.0
+ratios:
+  stop_loss: 1.0
+  take_profit: 3.0
+margin_pips: 0.01
+work_interval: 1
+skip_minutes: 60
+retry_order_minutes: 3
+mbox_time:
+  start: 04:30
+  end: '12:29'
+sessions:
+  main:
+    start: '12:29'
+    end: '22:00'
+  london:
+    start: '14:00'
+    end: '22:00'
+  newyork:
+    start: '20:00'
+    end: 02:29
+use_time_flag: false
+time_flag_hour: '10:30'
+fvg_timeframe: H4
+lookup_days: 5
+logging:
+  level: INFO
+  log_to_file: false
+  log_to_console: false
