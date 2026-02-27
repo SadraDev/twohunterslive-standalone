@@ -2,6 +2,7 @@ from pathlib import Path
 import yaml
 import json
 
+from django.http import JsonResponse
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_protect
@@ -15,6 +16,8 @@ SESSION_KEY = "yaml_editor_authenticated"
 def _get_yaml_path() -> Path:
     return Path(settings.YAML_FILE_PATH)
 
+def _get_console_path() -> Path:
+    return Path(settings.BASE_DIR).parent / "reports" / "logs"
 
 def _read_yaml_text() -> str:
     path = _get_yaml_path()
@@ -22,6 +25,12 @@ def _read_yaml_text() -> str:
         return "# YAML file not found at: %s" % path
     return path.read_text(encoding="utf-8")
 
+def fetch_console_logs(request):
+    content, path = _get_console_logs()
+    return JsonResponse({
+        "log_content": content,
+        "log_path": path,
+    })
 
 def _get_editor_credentials() -> tuple[str | None, str | None]:
     """
@@ -79,6 +88,26 @@ def _unflatten_dict(d, sep: str = "."):
             d_ref = d_ref[part]
         d_ref[parts[-1]] = value
     return result
+
+def _get_console_logs() -> tuple[str | None, str]:
+    """
+    Find the newest log file in BASE_DIR/reports/logs/*.log and return its content.
+    """
+    log_dir = _get_console_path()
+    if not log_dir.exists():
+        return "# No logs directory found", str(log_dir)
+
+    # Find newest .log file (YYYY-MM-DD.log pattern)
+    log_files = list(log_dir.glob("*.log"))
+    if not log_files:
+        return "# No .log files found", str(log_dir)
+
+    newest_log = max(log_files, key=lambda p: p.stat().st_mtime)
+    try:
+        content = newest_log.read_text(encoding="utf-8", errors="replace")
+        return content[-10000:], str(newest_log)  # Last 10k chars for performance
+    except Exception:
+        return f"# Failed to read {newest_log}", str(newest_log)
 
 
 @csrf_protect
@@ -233,6 +262,8 @@ def yaml_editor_view(request):
     is_running = False
     friendly_fields = []
 
+    log_content, log_path = _get_console_logs()
+
     try:
         current_text = _read_yaml_text()
         data = yaml.safe_load(current_text) or {}
@@ -295,6 +326,8 @@ def yaml_editor_view(request):
             "server_running": is_running,
             "friendly_fields": friendly_fields,
             "json_fields": json.dumps(friendly_fields),
+            "log_content": log_content,
+            "log_path": log_path,
             "saved_ok": saved_ok,
         },
     )

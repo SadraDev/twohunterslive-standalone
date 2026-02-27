@@ -525,13 +525,13 @@ class AdminController:
             dirty = True
 
         # ── 5a. pause (all symbols) ───────────────────────────────────
-        if cmds.get("pause"):
+        if cmds.get("pause") and not self._global_paused:
             with self._lock:
                 self._global_paused = True
             self._log.info("ADMIN ▶ pause — order placement suspended for ALL symbols")
             dirty = True
         
-        elif not cmds.get("pause"):
+        elif not cmds.get("pause") and self._global_paused:
             with self._lock:
                 self._global_paused = False
             self._log.info("ADMIN ▶ resume — order placement resumed for ALL symbols")
@@ -577,7 +577,6 @@ class AdminController:
                 fresh["admin_commands"] = cmds
                 with open(settings._config_path, "w", encoding="utf-8") as fh:
                     yaml.dump(fresh, fh, default_flow_style=False, allow_unicode=True, sort_keys=False)
-                self._log.debug("Admin flags written back to YAML")
             except Exception as exc:
                 self._log.error("Failed to write admin flags back to YAML: %s", exc)
 
@@ -1557,6 +1556,8 @@ def live(ctx, symbol, risk, max_concurrent, check_interval):
 
                         try:
                             context = get_trading_context(sym, current_dt)
+                            if context['mbox']["extrema_flag"]:
+                                log.warning("MBox high/low is formed after %s for %s - Skiping trading for today (Use force_order to trade today).", settings.time_flag_hour, sym)
                             t = threading.Thread(
                                 target = _run_symbol_live_trading,
                                 args   = (sym, fetcher, budget, mt5_conn, context,
@@ -2106,10 +2107,6 @@ def _run_symbol_live_trading(
         sig.entry_lot        = budget.lots_from_diff(sig.symbol, abs(sig.entry_price - sig.stop_loss))
         return sig
 
-    # ------------------------------------------------------------------
-    # Bar management
-    # ------------------------------------------------------------------
-
     def _fetch_and_update_bars(last_bar_time=None, bars=None) -> List[Bar]:
         if bars is None:
             bars = []
@@ -2146,6 +2143,7 @@ def _run_symbol_live_trading(
             return bars
         except Exception:
             return bars
+
 
     # ------------------------------------------------------------------
     # Main per-symbol loop
@@ -2262,6 +2260,15 @@ def _run_symbol_live_trading(
                     log.info("Symbol is PAUSED — signal stored, order placement suspended")
                 time.sleep(check_interval)
                 continue
+
+            # ── Flag check ────────────────────────────────────────────
+            if not admin.force_order and signal.time_flag:
+                log.warning(f"Signal is flagged — MBox high/low was formed after {settings.time_flag_hour} — skipping order placement")
+                time.sleep(check_interval)
+                continue
+
+            elif admin.force_order and signal.time_flag:
+                log.warning(f"Signal is flagged — MBox high/low was formed after {settings.time_flag_hour} — but ADMIN is forcing order placement")
 
             # ── Place order with retry ─────────────────────────────────
             order_placed = False

@@ -150,6 +150,53 @@
         .toast-container {
             z-index: 1100;
         }
+
+        .console-wrapper {
+            background: #020617;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            height: 500px;
+            overflow-y: auto;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.6);
+        }
+
+        #console-output {
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 0.85rem;
+            color: #22c55e;
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .console-wrapper {
+            background: #020617;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            height: 550px;
+            overflow-y: auto;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.6);
+            position: relative;
+        }
+
+        .console-pause-btn {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            z-index: 10;
+        }
+        
+        /* Hide scrollbar but keep scrolling (desktop) */
+        .console-wrapper {
+            -ms-overflow-style: none;  /* IE + Edge */
+            scrollbar-width: none;     /* Firefox */
+        }
+
+        .console-wrapper::-webkit-scrollbar {
+            display: none;             /* Chrome, Safari, Edge (Chromium) */
+        }
     </style>
 </head>
 <body>
@@ -194,14 +241,33 @@
 
     <div class="card p-4 shadow">
         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-            <div class="d-flex align-items-center gap-2">
-                <h5 class="mb-0 text-light" id="card-title" style="cursor:pointer;">Edit Configuration</h5>
-            </div>
+            <ul class="nav nav-tabs border-0" id="editor-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active bg-transparent text-light border-0"
+                            id="card-title"
+                            data-bs-toggle="tab"
+                            data-bs-target="#config-pane"
+                            type="button"
+                            role="tab">
+                        Edit Configuration
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link bg-transparent text-light border-0"
+                            id="console-tab"
+                            data-bs-toggle="tab"
+                            data-bs-target="#console-pane"
+                            type="button"
+                            role="tab">
+                        Console Log
+                    </button>
+                </li>
+            </ul>
             <div class="d-flex align-items-center gap-3">
                 <div class="d-flex align-items-center text-light"
                      style="font-size:0.8rem;font-weight:500;">
                     <span class="status-dot {% if server_running %}status-online{% else %}status-offline{% endif %}"></span>
-                    <span>Server {% if server_running %}Online{% else %}Offline{% endif %}</span>
+                    <span>{% if server_running %}Online{% else %}Offline{% endif %}</span>
                 </div>
                 <button type="button"
                         onclick="window.location.reload();"
@@ -219,19 +285,51 @@
         </div>
         <hr class="border-secondary mb-3" />
 
-        <form method="post" id="main-editor-form">
-            {% csrf_token %}
-            <input type="hidden" name="save_mode" id="save_mode_input" value="friendly">
+        <div class="tab-content">
+            
+            <div class="tab-pane fade show active"
+                id="config-pane"
+                role="tabpanel">
 
-            <div id="classic-view-container" style="display:none;">
-                {{ yaml_form.content }}
-                {{ yaml_form.content.errors }}
-            </div>
+                <form method="post" id="main-editor-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="save_mode" id="save_mode_input" value="friendly">
 
-            <div id="friendly-view-container">
-                <div id="friendly-fields-root"></div>
+                    <div id="classic-view-container" style="display:none;">
+                        {{ yaml_form.content }}
+                        {{ yaml_form.content.errors }}
+                    </div>
+
+                    <div id="friendly-view-container">
+                        <div id="friendly-fields-root"></div>
+                    </div>
+                </form>
+
             </div>
-        </form>
+            <!-- CONSOLE LOG TAB -->
+            <div class="tab-pane fade"
+                id="console-pane"
+                role="tabpanel">
+
+                <div style="font-size:0.8rem;color:#9ca3af;" class="mb-2">
+                    Log file:
+                    <span id="log-path" style="color:#e5e7eb;">
+                        {{ log_path }}
+                    </span>
+                </div>
+
+                <div class="console-wrapper position-relative">
+                    <pre id="console-output">{{ log_content|escape }}</pre>
+
+                </div>
+                <!-- Pause Button -->
+                <button type="button"
+                        id="toggle-console-btn"
+                        class="btn btn-sm btn-outline-warning console-pause-btn">
+                    Pause
+                </button>
+            </div>
+        </div> <!-- end tab-content -->
     </div>
 
     <button type="button" id="floating-save" class="btn btn-success">
@@ -268,6 +366,7 @@
     var friendlyRoot = document.getElementById("friendly-fields-root");
     var floatingSave = document.getElementById("floating-save");
     var cardTitle = document.getElementById("card-title");
+    var pathLabel = document.getElementById("log-path");
 
     var fieldsData = [];
     try {
@@ -665,6 +764,17 @@
         friendlyRoot.appendChild(section);
     }
 
+    // Auto-scroll console to bottom when tab is opened
+    var consoleTab = document.getElementById("console-tab");
+    if (consoleTab) {
+        consoleTab.addEventListener("shown.bs.tab", function () {
+            var consoleWrapper = document.querySelector(".console-wrapper");
+            if (consoleWrapper) {
+                consoleWrapper.scrollTop = consoleWrapper.scrollHeight;
+            }
+        });
+    }
+
     function renderFriendlyUI() {
         friendlyRoot.innerHTML = "";
         if (!fieldsData || !fieldsData.length) {
@@ -705,6 +815,113 @@
     }
 
     restoreScroll();
+
+    // --- Persist active tab across reloads ---
+    var tabButtons = document.querySelectorAll('#editor-tabs button[data-bs-toggle="tab"]');
+
+    tabButtons.forEach(function (btn) {
+        btn.addEventListener("shown.bs.tab", function (e) {
+            sessionStorage.setItem("activeEditorTab", e.target.id);
+        });
+    });
+
+    // Restore active tab on page load
+    var activeTabId = sessionStorage.getItem("activeEditorTab");
+    if (activeTabId) {
+        var triggerEl = document.getElementById(activeTabId);
+        if (triggerEl) {
+            var tab = new bootstrap.Tab(triggerEl);
+            tab.show();
+        }
+    }
+
+    // Fetch when clicking Console tab
+    var consoleTabBtn = document.getElementById("console-tab");
+    if (consoleTabBtn) {
+        consoleTabBtn.addEventListener("shown.bs.tab", function () {
+            fetchLogs();
+        });
+    }
+
+    // ==============================
+    // Console Auto Refresh + Pause
+    // ==============================
+
+    var consoleInterval = null;
+    var consolePaused = false;
+    var toggleBtn = document.getElementById("toggle-console-btn");
+
+    function fetchLogs() {
+        fetch("{% url 'fetch_console_logs' %}", { cache: "no-store" })
+            .then(response => response.json())
+            .then(data => {
+                var output = document.getElementById("console-output");
+                var pathLabel = document.getElementById("log-path");
+
+                if (output) {
+                    output.textContent = data.log_content || "";
+                }
+
+                if (pathLabel) {
+                    pathLabel.textContent = data.log_path || "";
+                }
+
+                var wrapper = document.querySelector(".console-wrapper");
+                if (wrapper) {
+                    wrapper.scrollTop = wrapper.scrollHeight;
+                }
+            })
+            .catch(err => console.error("Log fetch failed:", err));
+    }
+
+    function startConsoleAutoRefresh() {
+        if (consoleInterval || consolePaused) return;
+
+        fetchLogs();
+
+        consoleInterval = setInterval(fetchLogs, 1000);
+    }
+
+    function stopConsoleAutoRefresh() {
+        if (consoleInterval) {
+            clearInterval(consoleInterval);
+            consoleInterval = null;
+        }
+    }
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", function () {
+            consolePaused = !consolePaused;
+
+            if (consolePaused) {
+                stopConsoleAutoRefresh();
+                toggleBtn.textContent = "Resume";
+                toggleBtn.classList.remove("btn-outline-warning");
+                toggleBtn.classList.add("btn-outline-success");
+            } else {
+                toggleBtn.textContent = "Pause";
+                toggleBtn.classList.remove("btn-outline-success");
+                toggleBtn.classList.add("btn-outline-warning");
+                startConsoleAutoRefresh();
+            }
+        });
+    }
+
+    var consoleTabBtn = document.getElementById("console-tab");
+    if (consoleTabBtn) {
+        consoleTabBtn.addEventListener("shown.bs.tab", function () {
+            if (!consolePaused) {
+                startConsoleAutoRefresh();
+            }
+        });
+    }
+
+    var configTabBtn = document.getElementById("card-title");
+    if (configTabBtn) {
+        configTabBtn.addEventListener("shown.bs.tab", function () {
+            stopConsoleAutoRefresh();
+        });
+    }
 
     var toastEl = document.getElementById("save-toast");
     if (toastEl) {
